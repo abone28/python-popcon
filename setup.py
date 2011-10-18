@@ -10,5 +10,6 @@ setup(name='python-popcon',
         url='http://github.com/venthur/python-popcon',
         packages=['popcon'],
         package_dir={"": "src"},
+        scripts=["scripts/popcon_snap2db"],
         )
 

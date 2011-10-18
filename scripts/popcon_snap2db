@@ -1,0 +1,112 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#
+# Copyright (C) 2011  Andrey Bondarenko
+#
+# This file is part of python-popcon
+#
+# Python-popcon is free software: you can redistribute it and/or
+# modify it under the terms of the GNU General Public License as
+# published by the Free Software Foundation, either version 3 of 
+# the License, or (at your option) any later version.
+#
+# Python-popcon is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+# See the GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with python-popcon. If not, see <http://www.gnu.org/licenses/>.
+#
+"""Upload popularity-contest submission data into a database.
+
+"""
+
+import os
+import sys
+
+from datetime import datetime
+import pytz
+
+import popcon.sql
+import popcon.submission
+
+
+
+def iter_popcon_out(filename):
+    
+    host_id      = None
+    collect_time = None
+    default_arch = None
+    popcon_ver   = None
+
+    popcon_out = open(filename, "r")
+    for line in popcon_out:
+        row = line.split()
+        if row[0] == "POPULARITY-CONTEST-0":
+            host_id      = row[2][len("ID:"):]
+
+            collect_time = row[1][len("TIME:"):]
+            collect_time = datetime.utcfromtimestamp(float(collect_time)).isoformat()+"Z"
+
+            default_arch = row[3][len("ARCH:"):]
+            popcon_ver   = row[4][len("POPCONVER:"):]
+
+        elif row[0] == "END-POPULARITY-CONTEST-0":
+            pass
+        else:
+            yield [host_id, collect_time] + row + [""] if len(row) == 4 else []
+
+
+def parse_args(args):
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Load popularity-contenst submission data into database"
+        )
+    parser.add_argument("--db", metavar="URL", required=True,
+        help="database URL (for syntax see SQL Alchemy docs)"
+        )
+    parser.add_argument("file", nargs="?",
+        help="a popularity-contest submission file",
+        default="/var/log/popularity-contest",
+        )
+
+    return parser.parse_args(args)
+
+
+def main(args=None):
+
+    args = parse_args(args)
+
+    db = popcon.sql.PopconDB(args.db)
+
+    filename = args.file
+    host_id, ctime, popcon_ver, data = popcon.submission.read(open(filename, "r"))
+    # FIXME: use popcon.submission
+    data = open(filename, "r")
+    
+    s = db.new_submission(host_id, ctime)
+
+    print s._init_db_key()
+
+    UTC = pytz.utc
+
+    writer = s.get_writer()
+    def write(package, path, atime, ctime, tag):
+        writer.insert(package, path, atime, ctime, tag)
+
+    istream = iter_popcon_out(filename)
+    for row_no, row in enumerate(istream):
+        print row_no
+        if not row:
+            # FIXME: don't know why empty lines are in input
+            continue
+        host_id, ctime, atime, ctime, package, path, tag = row
+        atime = datetime.fromtimestamp(int(atime), UTC)
+        ctime = datetime.fromtimestamp(int(ctime), UTC)
+        write(package, path, atime, ctime, tag)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
