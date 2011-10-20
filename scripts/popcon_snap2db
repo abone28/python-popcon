@@ -32,32 +32,6 @@ import popcon.sql
 import popcon.submission
 
 
-
-def iter_popcon_out(filename):
-    
-    host_id      = None
-    collect_time = None
-    default_arch = None
-    popcon_ver   = None
-
-    popcon_out = open(filename, "r")
-    for line in popcon_out:
-        row = line.split()
-        if row[0] == "POPULARITY-CONTEST-0":
-            host_id      = row[2][len("ID:"):]
-
-            collect_time = row[1][len("TIME:"):]
-            collect_time = datetime.utcfromtimestamp(float(collect_time)).isoformat()+"Z"
-
-            default_arch = row[3][len("ARCH:"):]
-            popcon_ver   = row[4][len("POPCONVER:"):]
-
-        elif row[0] == "END-POPULARITY-CONTEST-0":
-            pass
-        else:
-            yield [host_id, collect_time] + row + [""] if len(row) == 4 else []
-
-
 def parse_args(args):
     import argparse
 
@@ -84,7 +58,6 @@ def main(args=None):
     filename = args.file
     host_id, ctime, popcon_ver, data = popcon.submission.read(open(filename, "r"))
     # FIXME: use popcon.submission
-    data = open(filename, "r")
     
     s = db.new_submission(host_id, ctime)
 
@@ -96,7 +69,7 @@ def main(args=None):
     def write(package, path, atime, ctime, tag):
         writer.insert(package, path, atime, ctime, tag)
 
-    istream = iter_popcon_out(filename)
+    istream = popcon.submission.iter_popcon_out(filename)
     for row_no, row in enumerate(istream):
         print row_no
         if not row:

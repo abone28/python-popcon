@@ -18,10 +18,10 @@
 # along with python-popcon. If not, see <http://www.gnu.org/licenses/>.
 #
 
-"""Process raw popularity-contest submission data
+"""Process popularity-contest submission
 """
 
-__all__ = [ "parse" ]
+__all__ = [ "read" ]
 
 from datetime import datetime
 # FIXME: pytz is not part of python stdlib, shall we use it?
@@ -82,34 +82,5 @@ def iter_popcon_out(filename):
         else:
             yield [host_id, collect_time] + row + [""] if len(row) == 4 else []
 
-    filename = "/var/log/popularity-contest"
-
-    # FIXME: get date and time from file contents
-    ctime = datetime.fromtimestamp(
-       os.stat(filename).st_mtime, pytz.utc)
-
-    host_id = 'de2b4645-d58f-407e-9071-cf447e5cef5d'
-    #ctime   = 
-
-    s = db.new_submission(host_id, ctime)
-
-    print s._init_db_key()
-
-    UTC = pytz.utc
-
-    writer = s.get_writer()
-    def write(package, path, atime, ctime, tag):
-        writer.insert(package, path, atime, ctime, tag)
-
-    istream = iter_popcon_out(filename)
-    for row_no, row in enumerate(istream):
-        print row_no
-        if not row:
-            # FIXME: хз почему пустые строки встречаются
-            continue
-        host_id, ctime, atime, ctime, package, path, tag = row
-        atime = datetime.fromtimestamp(int(atime), UTC)
-        ctime = datetime.fromtimestamp(int(ctime), UTC)
-        write(package, path, atime, ctime, tag)
         
     
