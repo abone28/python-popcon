@@ -56,8 +56,7 @@ def main(args=None):
     db = popcon.sql.PopconDB(args.db)
 
     filename = args.file
-    host_id, ctime, popcon_ver, data = popcon.submission.read(open(filename, "r"))
-    # FIXME: use popcon.submission
+    host_id, ctime, popcon_ver, data = popcon.submission.reader(filename).next()
     
     s = db.new_submission(host_id, ctime)
 
@@ -69,16 +68,15 @@ def main(args=None):
     def write(package, path, atime, ctime, tag):
         writer.insert(package, path, atime, ctime, tag)
 
-    istream = popcon.submission.iter_popcon_out(filename)
-    for row_no, row in enumerate(istream):
+    for row_no, row in enumerate(data):
         print row_no
         if not row:
             # FIXME: don't know why empty lines are in input
             continue
-        host_id, ctime, atime, ctime, package, path, tag = row
-        atime = datetime.fromtimestamp(int(atime), UTC)
-        ctime = datetime.fromtimestamp(int(ctime), UTC)
-        write(package, path, atime, ctime, tag)
+        fatime, fctime, package, path, tag = row
+        fatime = datetime.fromtimestamp(int(fatime), UTC)
+        fctime = datetime.fromtimestamp(int(fctime), UTC)
+        write(package, path, fatime, fctime, tag)
 
 
 if __name__ == "__main__":

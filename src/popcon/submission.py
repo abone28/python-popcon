@@ -21,17 +21,55 @@
 """Process popularity-contest submission
 """
 
-__all__ = [ "read" ]
+__all__ = [ "reader", "read" ]
+
+import __builtin__
 
 from datetime import datetime
-# FIXME: pytz is not part of python stdlib, shall we use it?
-
-
 
 class PopconSubmission(object):
 
     def __init__(self):
         pass
+
+def reader(file_):
+    """Open popularity contest submission file.
+    """
+    if isinstance(file_, basestring):
+        file_ = __builtin__.open(file_, "r")
+
+    def iter_submissions(file_):
+        head = file_.readline()
+        while head:
+            if head.startswith("POPULARITY-CONTEST-0"):
+                head = head.strip().split()
+            
+                host_id = head[2][len("ID:"):]
+
+                ctime = head[1][len("TIME:"):]
+                # FIXME: WTF? why not datetime?
+                ctime = datetime.utcfromtimestamp(float(ctime)).isoformat()+"Z"
+
+                default_arch = head[3][len("ARCH:"):]
+    
+                popcon_version = head[4][len("POPCONVER:"):]
+
+                # FIXME: add real iterator
+                # FIXME: avoid side effects because of global file_
+                # FIXME: avoid scanning file two times
+                def iter_data(file_):
+                    for line in file_:
+                        if line.startswith("END-POPULARITY-CONTEST-0"):
+                            return
+                        row = line.split()
+                        yield row + [""] if len(row) == 4 else []
+
+                idata = iter_data(file_)
+
+                yield host_id, ctime, popcon_version, idata
+            head = file_.readline()
+
+    return iter_submissions(file_)
 
 
 def read(stream):
