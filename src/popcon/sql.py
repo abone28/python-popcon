@@ -26,8 +26,15 @@ __all__ = [ "PopconDB", "PopconStats" ]
 from datetime import datetime
 
 from sqlalchemy import create_engine
+
+from sqlalchemy import Column
 from sqlalchemy import MetaData
+from sqlalchemy import Sequence
 from sqlalchemy import Table
+
+from sqlalchemy import DateTime
+from sqlalchemy import Integer
+from sqlalchemy import String
 
 from sqlalchemy.sql import and_
 from sqlalchemy.sql import bindparam
@@ -35,17 +42,20 @@ from sqlalchemy.sql import bindparam
 
 TABLE_POPCON_SNAP  = "popcon_snap"
 TABLE_POPCON_STATS = "popcon_stats"
+TABLE_POPCON_SUBMISSION = "popcon_submission"
 
 BULK_BUF_SIZE = 100
 
 
 class PopconDB(object):
 
+    metadata = MetaData()
+
     def __init__(self, url):
         self.engine = create_engine(url)
 
     def new_submission(self, host_id, collect_time):
-        return PopconSubmission(self.engine, host_id, collect_time)
+        return PopconSubmission(self, host_id, collect_time)
 
     def new_stats(self, url, timestamp=None):
         return PopconStats(self.engine, url, timestamp)
@@ -53,23 +63,43 @@ class PopconDB(object):
     def pkg_bulk_writer(self, snap):
         return _BulkPkgWriter(self.engine, snap)
 
+    def init_db(self):
+        self.metadata.create_all(self.engine)
+
+# FIXME: add meaningful constraints
+Table(TABLE_POPCON_SUBMISSION, PopconDB.metadata,
+      Column("submission_id", Integer, primary_key=True,
+             Sequence("popcon_submission_seq")),
+      Column("host_id", String),
+      Column("submit_time", DateTime(timezone=True))
+      )
+
+Table("popcon_submission_data", PopconDB.metadata,
+      Column("submission_id", Integer),
+      Column("package", String),
+      Column("path", String),
+      Column("atime", DateTime(timezone=True)),
+      Column("ctime", DateTime(timezone=True)),
+      Column("tag", String)
+      )
+
 
 class PopconSubmission(object):
     """Handler for a single snapshot of popcon statistics
     """
-    def __init__(self, engine, host_id, ctime):
-        self._engine = engine
+    def __init__(self, db, host_id, ctime):
+        self._engine = db.engine
+        self._db = db
 
         self.submission_id = None
         self.host_id       = host_id
         self.ctime         = ctime
 
     def _init_db_key(self):
-        engine = self._engine
-        t = Table("popcon_submission", MetaData(bind=engine), autoload=True)
+        t = self._db.metadata.tables[TABLE_POPCON_SUBMISSION]
         #try:
             # autocommit here
-        t.insert().\
+        t.insert(bind=self._engine).\
             values(host_id = self.host_id, submit_time = self.ctime).\
             execute()
         # except sqlalchemy.exc.IntegrityError:
@@ -77,7 +107,7 @@ class PopconSubmission(object):
         result = t.select(and_(
                 t.c.host_id == self.host_id,
                 t.c.submit_time  == self.ctime
-                )).execute()
+                ), bind=self._engine).execute()
         self.submission_id = result.fetchone()[0]
         return self.submission_id
 

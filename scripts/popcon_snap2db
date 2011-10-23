@@ -54,6 +54,8 @@ def main(args=None):
     args = parse_args(args)
 
     db = popcon.sql.PopconDB(args.db)
+    # FIXME: initialize database only if allowed
+    db.init_db()
 
     filename = args.file
     host_id, ctime, popcon_ver, data = popcon.submission.reader(filename).next()
